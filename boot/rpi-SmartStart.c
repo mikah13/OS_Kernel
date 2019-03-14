@@ -649,6 +649,10 @@ void Embedded_Console_WriteChar(char Ch) {
 		console.cursor.y++;									// Increment cursor down a line
 	}
 			   break;
+	case '\b': {
+		console.cursor.x --;
+	}
+				break;
 	default: {												// All other characters
 		console.curPos.x = console.cursor.x * BitFontWth;
 		console.curPos.y = console.cursor.y * BitFontHt;
@@ -658,6 +662,8 @@ void Embedded_Console_WriteChar(char Ch) {
 			 break;
 	}
 }
+
+
 
 /*-WriteText-----------------------------------------------------------------
 Draws given string in BitFont Characters in the colour specified starting at
@@ -1345,7 +1351,7 @@ bool PiConsole_Init (int Width, int Height, int Depth, printhandler prn_handler)
 
 	console.TxtColor.ref = 0xFFFFFFFF;
 	console.BkColor.ref = 0x00000000;
-	console.BrushColor.ref = 0xFF00FF00;
+	console.BrushColor.ref = 0x00000000;
 	console.wth = Width;
 	console.ht = Height;
 	console.depth = Depth;
@@ -1377,8 +1383,8 @@ bool PiConsole_Init (int Width, int Height, int Depth, printhandler prn_handler)
 		break;
 	}
 
-	if (prn_handler) prn_handler("Screen resolution %i x %i Colour Depth: %i\n",
-		Width, Height, Depth);										// If print handler valid print the display resolution message
+	// if (prn_handler) prn_handler("Screen resolution %i x %i Colour Depth: %i\n",
+	// 	Width, Height, Depth);										// If print handler valid print the display resolution message
 	return true;
 }
 
@@ -1398,7 +1404,11 @@ uint32_t GetConsole_Height(void) {
 	return (uint32_t)console.ht;
 }
 
-
+void ClearScreen(void){
+	Rectangle(GetConsoleDC(), 0, 0, GetConsole_Width(), GetConsole_Height());
+	console.cursor.x = 0;	
+	console.cursor.y = 0;	
+}
 /* Increase program data space. As malloc and related functions depend on this,
 it is useful to have a working implementation. The following suffices for a
 standalone system; it exploits the symbol _end automatically defined by the

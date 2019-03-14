@@ -26,65 +26,34 @@ int main(void)
 	ARM_setmaxspeed(&printf); // ARM CPU to max speed and confirm to screen
 	/* Display the SD CARD directory */
 	sdInitCard(&printf, &printf, true);
+	sdCreateFile("meowmeow.txt", GENERIC_READ, 0, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
 
-	// printf("\n");
-	// printf("Opening Alice.txt \n");
-
-	// HANDLE fHandle = sdCreateFile("Alice.txt", GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-	// if (fHandle != 0)
-	// {
-	// 	uint32_t bytesRead;
-
-	// 	if ((sdReadFile(fHandle, &buffer[0], 500, &bytesRead, 0) == true))
-	// 	{
-	// 		buffer[bytesRead - 1] = '\0'; ///insert null char
-	// 		printf("File Contents: %s", &buffer[0]);
-	// 	}
-	// 	else
-	// 	{
-	// 		printf("Failed to read");
-	// 	}
-
-	// 	// Close the file
-	// 	sdCloseHandle(fHandle);
-	// }
-
-	hal_io_video_init();
-
-	hal_io_video_puts("HELLO THERE ", 3, VIDEO_COLOR_WHITE);
-
-	//Typewriter
 	hal_io_serial_init();
 	hal_io_serial_puts(SerialA, "\nminios: $ ");
-	printf("%s", "\nminios: $ ");
+	printf("\nminios: $ ");
 	uint8_t c;
-	uint8_t prevC;
 	char *command;
 	command[0] = '\0';
+	int len = 0;
 	while (1)
 	{
 		c = hal_io_serial_getc(SerialA);
-		// if(c == 'l'){
-		// 	 prevC = c;
-		// }
-		// if(prevC == 'l' && c == 's'){
-		// 		DisplayDirectory("\\*.*");
-		// }
-		// hal_io_serial_putc(SerialA, c);
-		// printf("%c", c);
 		if (c == '\n' || c == '\r')
 		{
-			printf("%s", command);
 			execute(command);
-			hal_io_serial_puts(SerialA, "\nminios: $ ");
-			printf("%s", "\nminios: $ ");
+			hal_io_serial_puts(SerialA, "minios: $ ");
+			printf("minios: $ ");
 			command[0] = '\0';
 		}
 		else if (c == '\b')
 		{
 
-			hal_io_serial_putc(SerialA, c);
-			printf("%c", c);
+			if (strlen(command) > 0)
+			{
+				backspace(command);
+				hal_io_serial_puts(SerialA, "\b \b");
+				printf("%s", "\b \b");
+			}
 		}
 		else
 		{
@@ -94,38 +63,77 @@ int main(void)
 		}
 	}
 
-	void user_prompt()
-	{
-	}
-
-	// /* display bitmap on screen */
-	// //DisplayBitmap(743, 624, "./MINIOS.BMP");   //<<<<-- Doesn't seem to work
-
-	// while (1){
-	// 	set_Activity_LED(1);			// Turn LED on
-	// 	timer_wait(500000);				// 0.5 sec delay
-	// 	set_Activity_LED(0);			// Turn Led off
-	// 	timer_wait(500000);				// 0.5 sec delay
-	//   }
-	// return(0);
+	// DisplayBitmap(743, 624, "./MINIOS.BMP"); //<<<<-- Doesn't seem to work
 }
 void execute(char *cmd)
 {
-	if (strcmp(cmd, "ls") == 0)
+	char command[2][100];
+
+	int i, j, cnt;
+	cnt = 0;
+	for (i = 0; i <= (strlen(cmd)); i++)
+	{
+		// if space or NULL found, assign NULL into splitStrings[cnt]
+		if (cmd[i] == ' ' || cmd[i] == '\0')
+		{
+			command[cnt][j] = '\0';
+			cnt++; //for next word
+			j = 0; //for next word, init index to 0
+		}
+		else
+		{
+			command[cnt][j] = cmd[i];
+			j++;
+		}
+	}
+
+	if (strcmp(command[0], "ls") == 0)
 	{
 
-		printf("\nDirectory (/): \n");
 		DisplayDirectory("\\*.*");
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
 	}
-	else if (strcmp(cmd, "sysinfo") == 0)
+	else if (strcmp(command[0], "sysinfo") == 0)
 	{
 		printf("\nSystem Information: \n");
 		sdInitCard(&printf, &printf, true);
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
 	}
+	else if (strcmp(command[0], "cat") == 0)
+	{
+		ReadFile(command[1]);
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
+	}
+	else if (strcmp(command[0], "cls") == 0)
+	{
+		clear_screen();
+		hal_io_serial_puts(SerialA, "\n");
+	}
+	else if (strcmp(command[0], "cd") == 0)
+	{
+		char *dir = "\\";
+
+		strcat(dir, command[1]);
+		strcat(dir, "\\*.*");
+		DisplayDirectory(dir);
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
+	}
+
 	else
 	{
-		printf("\ncommand not found");
+		printf("\n%s: command not found", command[0]);
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
 	}
+}
+
+void clear_screen()
+{
+	ClearScreen();
 }
 void concatenate(char *p, char q)
 {
@@ -149,17 +157,58 @@ void backspace(char *p)
 	{
 		c++;
 	}
-	c--;
-	p[0] == '\0';
+	if (c >= 1)
+	{
+		p[c - 1] = '\0';
+	}
+}
+int str_len(char *str)
+{
+	int c = 0;
+
+	while (str[c] != '\0')
+	{
+		c++;
+	}
+	return c;
+}
+void ReadFile(char *filename)
+{
+	HANDLE fHandle = sdCreateFile(filename, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	if (fHandle != 0)
+	{
+		uint32_t bytesRead;
+
+		if ((sdReadFile(fHandle, &buffer[0], 5000, &bytesRead, 0) == true))
+		{
+			buffer[bytesRead - 1] = '\0'; ///insert null char
+			printf("\n%s", &buffer[0]);
+		}
+		else
+		{
+			printf("\nFailed to read");
+		}
+
+		// Close the file
+		sdCloseHandle(fHandle);
+	}
+	else
+	{
+		hal_io_serial_puts(SerialA, "\nNo such file or directory");
+		printf("\nNo such file or directory");
+	}
 }
 void DisplayDirectory(const char *dirName)
 {
+	printf("\n");
+	unsigned long i = 0;
 	HANDLE fh;
 	FIND_DATA find;
 	char *month[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 	fh = sdFindFirstFile(dirName, &find); // Find first file
 	do
 	{
+		i++;
 		if (find.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY)
 			printf("%s <DIR>\n", find.cFileName);
 		else
