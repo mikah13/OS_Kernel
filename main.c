@@ -5,6 +5,7 @@
 *
 */
 
+#include <stdio.h>
 #include <stdbool.h>				 // Neede for bool
 #include <stdint.h>					 // Needed for uint32_t, uint16_t etc
 #include <string.h>					 // Needed for memcpy
@@ -15,18 +16,23 @@
 #include "hal/hal.h"
 
 char buffer[500];
+char *currentDir;
+const char *defaultRoot = "";
+const char *allFiles = "\\*.*";
+const char *previousDir = "..";
+const char *dir = "\\";
 
 void DisplayDirectory(const char *);
 
 int main(void)
 {
+	currentDir = "";
 	PiConsole_Init(0, 0, 0, &printf); // Auto resolution console, show resolution to screen
 	// displaySmartStart(&printf);
 	// Display smart start details
 	ARM_setmaxspeed(&printf); // ARM CPU to max speed and confirm to screen
 	/* Display the SD CARD directory */
 	sdInitCard(&printf, &printf, true);
-	sdCreateFile("meowmeow.txt", GENERIC_READ, 0, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
 
 	hal_io_serial_init();
 	hal_io_serial_puts(SerialA, "\nminios: $ ");
@@ -67,8 +73,8 @@ int main(void)
 }
 void execute(char *cmd)
 {
+	printf("\n");
 	char command[2][100];
-
 	int i, j, cnt;
 	cnt = 0;
 	for (i = 0; i <= (strlen(cmd)); i++)
@@ -89,8 +95,10 @@ void execute(char *cmd)
 
 	if (strcmp(command[0], "ls") == 0)
 	{
-
-		DisplayDirectory("\\*.*");
+		char *searchString = malloc(100);
+		strcpy(searchString, currentDir);
+		strcat(searchString, allFiles);
+		DisplayDirectory(searchString);
 		hal_io_serial_puts(SerialA, "\n");
 		printf("\n");
 	}
@@ -114,21 +122,57 @@ void execute(char *cmd)
 	}
 	else if (strcmp(command[0], "cd") == 0)
 	{
-		char *dir = "\\";
 
-		strcat(dir, command[1]);
-		strcat(dir, "\\*.*");
-		DisplayDirectory(dir);
+		if (strlen(currentDir) == 0 && strcmp(command[1], previousDir) == 0)
+		{ // .. at Root directory do nothing
+			printf("\n.. At Root \n");
+		}
+		else if (strcmp(command[1], previousDir) == 0)
+		{ // .. at Non Root Directory remove last directory
+			printf("\n.. At Non Root \n");
+			removeLastDirectory(currentDir);
+		}
+		else
+		{
+			strcat(currentDir, dir);
+			strcat(currentDir, command[1]);
+		}
+		char *searchString = malloc(100);
+		strcpy(searchString, currentDir);
+		strcat(searchString, allFiles);
+
+		printf("Changed Directory to: %s\n", currentDir);
+		//DisplayDirectory(searchString);
 		hal_io_serial_puts(SerialA, "\n");
 		printf("\n");
 	}
-
+	else if (strcmp(command[0], "dump") == 0)
+	{
+		ReadBinFile(command[1]);
+		hal_io_serial_puts(SerialA, "\n");
+		printf("\n");
+	}
 	else
 	{
 		printf("\n%s: command not found", command[0]);
 		hal_io_serial_puts(SerialA, "\n");
 		printf("\n");
 	}
+}
+//Assumes not root
+void removeLastDirectory(char *directory)
+{
+	printf("Before removing last Directory: %s\n", directory);
+	for (int i = strlen(directory) - 1; i >= 0; i--)
+	{
+		if (directory[i] == '\\')
+		{
+			directory[i] = 0;
+			break;
+		}
+		directory[i] = 0;
+	}
+	printf("After removing last Directory: %s\n", directory);
 }
 
 void clear_screen()
@@ -174,30 +218,57 @@ int str_len(char *str)
 }
 void ReadFile(char *filename)
 {
-	HANDLE fHandle = sdCreateFile(filename, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	char *searchString = malloc(100);
+	strcpy(searchString, currentDir);
+	strcat(searchString, dir);
+	strcat(searchString, filename);
+	printf("OPENING %s\n", searchString);
+	HANDLE fHandle = sdCreateFile(searchString, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 	if (fHandle != 0)
 	{
 		uint32_t bytesRead;
 
-		if ((sdReadFile(fHandle, &buffer[0], 5000, &bytesRead, 0) == true))
+		if ((sdReadFile(fHandle, &buffer[0], 500, &bytesRead, 0) == true))
 		{
 			buffer[bytesRead - 1] = '\0'; ///insert null char
-			printf("\n%s", &buffer[0]);
+			printf("File Contents: %s", &buffer[0]);
 		}
 		else
 		{
-			printf("\nFailed to read");
+			printf("Failed to read");
 		}
 
 		// Close the file
 		sdCloseHandle(fHandle);
 	}
-	else
+}
+
+void ReadBinFile(char *filename)
+{
+	char *searchString = malloc(100);
+	strcpy(searchString, currentDir);
+	strcat(searchString, dir);
+	strcat(searchString, filename);
+	HANDLE fHandle = sdCreateFile(searchString, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	if (fHandle != 0)
 	{
-		hal_io_serial_puts(SerialA, "\nNo such file or directory");
-		printf("\nNo such file or directory");
+		uint32_t bytesRead;
+
+		if ((sdReadBinFile(fHandle, &buffer[0], 500, &bytesRead, 0) == true))
+		{
+			buffer[bytesRead - 1] = '\0'; ///insert null char
+			printf("Binary File Contents: %s", &buffer[0]);
+		}
+		else
+		{
+			printf("Failed to read");
+		}
+
+		// Close the file
+		sdCloseHandle(fHandle);
 	}
 }
+
 void DisplayDirectory(const char *dirName)
 {
 	printf("\n");
